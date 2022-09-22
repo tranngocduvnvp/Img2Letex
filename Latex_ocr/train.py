@@ -34,7 +34,6 @@ class ExperimentModel:
     def exp(self):
         for epoch in range(1, self.args["num_epoch"]):
             print(len(iter(self.trainloader)))
-            break
             train_loss = self.train_step(iter(self.trainloader))
             eval_loss = self.eval_step(iter(self.valloader))
             print("Train loss {:.4f} | Eval loss {:.4f}".format(train_loss, eval_loss))
