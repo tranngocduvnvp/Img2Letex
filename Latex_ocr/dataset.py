@@ -16,7 +16,7 @@ import pandas as pd
 
 
 class Im2LatexDataset:
-    keep_smaller_batches = False
+    keep_smaller_batches = True
     shuffle = True
     batchsize = 16
     max_dimensions = (192, 672)
@@ -70,17 +70,19 @@ class Im2LatexDataset:
                 for i, im in tqdm(enumerate(self.images), total=len(self.images)):
                     path = images + im
                     width, height = imagesize.get(path)
-                    if min_dimensions[0] <= width <= max_dimensions[0] and min_dimensions[1] <= height <= max_dimensions[1]:
+                    if min_dimensions[1] <= width <= max_dimensions[1] and min_dimensions[0] <= height <= max_dimensions[0]:
                         self.data[(width, height)].append((eqs[i], path))
                 print("success!")
             except KeyboardInterrupt:
                 pass
             self.data = dict(self.data)
+            # print(len(self.data))
             self._get_size()
             # print(self.size)
             # print("len self.data:", len(self.data))
 
             iter(self)
+  
 
     def __len__(self):
         return self.size
@@ -104,6 +106,8 @@ class Im2LatexDataset:
                 if len(batch) < self.batchsize and not self.keep_smaller_batches:
                     continue
                 self.pairs.append(batch)
+                # print(batch.shape)
+
         if self.shuffle:
             self.pairs = np.random.permutation(np.array(self.pairs, dtype=object))
         else:
@@ -216,6 +220,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--images', type=str, nargs='+', default=None, help='Image folders')
     parser.add_argument('-e', '--equations', type=str, nargs='+', default=None, help='equations text files')
     parser.add_argument('-t', '--tokenizer', default=None, help='Pretrained tokenizer file')
+    parser.add_argument('--test', default=False, type=bool, help='Using test transformation')
     parser.add_argument('-o', '--out', type=str, required=True, help='output file')
     parser.add_argument('-s', '--vocab-size', default=8000, type=int, help='vocabulary size when training a tokenizer')
     args = parser.parse_args()
@@ -229,9 +234,15 @@ if __name__ == '__main__':
         dataset = None
         for images, equations in zip(args.images, args.equations):
             if dataset is None:
-                dataset = Im2LatexDataset(equations, images, args.tokenizer)
+                dataset = Im2LatexDataset(equations, images, args.tokenizer, test=args.test)
             else:
-                dataset.combine(Im2LatexDataset(equations, images, args.tokenizer))
+                dataset.combine(Im2LatexDataset(equations, images, args.tokenizer, test=args.test))
         dataset.save(args.out)
     else:
         print('Not defined')
+
+'''
+python dataset.py -i D:\\formula_images_processed/formula_images_processed/ -e D:\Img2Latex\datasets\im2latex_train.csv -o ./datasets/train.pkl
+python dataset.py -i D:\Img2Latex\datasets\data_ch/ -e D:\Img2Latex\datasets\data_crawl.csv -o ./datasets/hoa.pkl
+
+'''

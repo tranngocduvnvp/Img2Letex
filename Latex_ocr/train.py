@@ -31,14 +31,17 @@ class ExperimentModel:
         self.tokenizer = PreTrainedTokenizerFast(tokenizer_file=args["tokenizer"])
         self.args = args
     
-    def run(self):
+    def exp(self):
         for epoch in range(1, self.args["num_epoch"]):
+            print(len(iter(self.trainloader)))
+            break
             train_loss = self.train_step(iter(self.trainloader))
             eval_loss = self.eval_step(iter(self.valloader))
             print("Train loss {:.4f} | Eval loss {:.4f}".format(train_loss, eval_loss))
-            if epoch%5 == 0:
+            if epoch%1 == 0:
                 bleu_score, cer_loss = self.metric(iter(self.testloader))
                 print("Bleu score {:.4f} | Cer loss {:.4f}".format(bleu_score, cer_loss))
+            print("-"*20)
             if epoch % 10 == 0:
                 torch.save(self.model.state_dict(),f"./checkpoints/checkpoint_epoch{epoch}")
 
@@ -86,15 +89,18 @@ class ExperimentModel:
         self.model.eval()
         bleus_score = []
         cer_loss = []
-        # datatest = iter(self.testloader)
         with tqdm(total=len(datatest)) as pbar:
             for i, (tok, img) in enumerate(datatest):
                 bn = img.shape[0]
                 img = img.to(self.device)
                 tok = tok.to(self.device)
                 truth = self.detokenize(tok['input_ids'], self.tokenizer)
-                pred = self.detokenize(self.predict(img), self.tokenizer)
-                bleus = metrics.bleu_score(pred, [truth])
+                # print(truth)
+                pred = self.predict(img)
+                # print("pred:",pred, "len:", len(pred))
+                # print("-"*30)
+                # print("truth:", truth, "len:", len(truth))
+                bleus = metrics.bleu_score(pred, truth)
                 cer = char_error_rate(self.tokenTstr(pred), self.tokenTstr(truth))
                 bleus_score.append(bleus)
                 cer_loss.append(cer)
@@ -105,7 +111,7 @@ class ExperimentModel:
     def predict(self, img):
         self.model.eval()
         pred = self.model.predict(img)
-        pred = self.detokenize(pred)
+        pred = self.detokenize(pred, self.tokenizer)
         return pred
 
     def detokenize(self, tokens, tokenizer):
@@ -127,12 +133,14 @@ class ExperimentModel:
 
 
 args = {
-    "data_train":"D:\LaTeX-OCR-1\Latex_ocr\hoa.pkl",
+    "data_train":"D:\Img2Latex\Latex_ocr\datasets\\train.pkl",
     "data_val":"D:\LaTeX-OCR-1\Latex_ocr\hoa.pkl",
+    "data_test":"D:\LaTeX-OCR-1\Latex_ocr\hoa.pkl",
     "tokenizer":"D:\LaTeX-OCR-1\Latex_ocr\\tokenizer\\tokenizer.json",
     "model":[[128, 8, 4080, 6], [128, 8, 4080, 6, 1175]],
     "checkpoint":None,
     "num_epoch":10
 }
 run = ExperimentModel(args)
+run.exp()
 

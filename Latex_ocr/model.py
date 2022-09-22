@@ -5,6 +5,8 @@ import torch.nn as nn
 from torchvision import models
 import math
 
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
 class Sin_Cos_PositionalEncoding(nn.Module):
 
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
@@ -92,7 +94,7 @@ class Decoder(nn.Module):
         tgt = self.embedding(tgt)*math.sqrt(self.d_model) #(sq, bn, d_model)
         sq, bn, dim = tgt.shape
         tgt = self.sin_cos_positional_encoding(tgt)
-        mask = generate_square_subsequent_mask(sq)
+        mask = generate_square_subsequent_mask(sq).to(device)
         output = self.decoder_transformer(tgt, encoder_embed, mask)
         output = self.fc(output)
         return output
