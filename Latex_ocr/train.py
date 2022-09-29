@@ -192,7 +192,7 @@ args = {
     "tokenizer":"D:\LaTeX-OCR-1\Latex_ocr\\tokenizer\\tokenizer.json",
     "model":[[128, 4, 256, 3], [128, 4, 256, 3, 1175]],
     "checkpoint":"D:\Img2Latex\Latex_ocr\checkpoints\checkpoint_epoch20",
-    "num_epoch":10
+    "num_epoch":20
 }
 
 if __name__ == "__main__":
