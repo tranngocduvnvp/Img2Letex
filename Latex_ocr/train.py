@@ -3,6 +3,8 @@ import enum
 from lib2to3.pgen2 import token
 from operator import eq
 from pickletools import optimize
+import cv2
+import re
 import numpy as np
 from dataset import Im2LatexDataset
 import torch
@@ -12,6 +14,7 @@ from model import OCR_model
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
+from transform import test_transform
 from transformers import PreTrainedTokenizerFast
 import warnings
 warnings.filterwarnings('ignore')
@@ -33,15 +36,14 @@ class ExperimentModel:
     
     def exp(self):
         for epoch in range(1, self.args["num_epoch"]):
-            print(len(iter(self.trainloader)))
             train_loss = self.train_step(iter(self.trainloader))
             eval_loss = self.eval_step(iter(self.valloader))
             print("Train loss {:.4f} | Eval loss {:.4f}".format(train_loss, eval_loss))
-            if epoch%1 == 0:
+            if epoch%5 == 0:
                 bleu_score, cer_loss = self.metric(iter(self.testloader))
                 print("Bleu score {:.4f} | Cer loss {:.4f}".format(bleu_score, cer_loss))
             print("-"*20)
-            if epoch % 10 == 0:
+            if epoch % 5 == 0:
                 torch.save(self.model.state_dict(),f"./checkpoints/checkpoint_epoch{epoch}")
 
     def train_step(self, datatrain):
@@ -93,14 +95,20 @@ class ExperimentModel:
                 bn = img.shape[0]
                 img = img.to(self.device)
                 tok = tok.to(self.device)
-                truth = self.detokenize(tok['input_ids'], self.tokenizer)
-                # print(truth)
                 pred = self.predict(img)
-                # print("pred:",pred, "len:", len(pred))
-                # print("-"*30)
-                # print("truth:", truth, "len:", len(truth))
-                bleus = metrics.bleu_score(pred, truth)
-                cer = char_error_rate(self.tokenTstr(pred), self.tokenTstr(truth))
+                #========================= Tính bleu score =======================================
+                truth_detoc = self.detokenize(tok['input_ids'], self.tokenizer)
+                pred_detoc = self.detokenize(pred, self.tokenizer)
+                # print("pred:", truth_detoc)
+                # print("trult:", pred_detoc)
+                bleus = metrics.bleu_score(pred_detoc, [[x] for x in truth_detoc])
+                # break
+                #=============================== End ==============================================
+                #============================ Tính CER metric =====================================
+                truth_post_pro = self.token_post_process(tok["input_ids"], self.tokenizer)
+                pred_post_pro = self.token_post_process(pred, self.tokenizer)
+                cer = char_error_rate(pred_post_pro, truth_post_pro)
+                #==================================================================================
                 bleus_score.append(bleus)
                 cer_loss.append(cer)
                 pbar.set_description("Bleus score: {:.4f}| Cer loss: {:.4f}".format(bleus, cer))
@@ -110,7 +118,11 @@ class ExperimentModel:
     def predict(self, img):
         self.model.eval()
         pred = self.model.predict(img)
-        pred = self.detokenize(pred, self.tokenizer)
+        return pred
+    def inference(self, img):
+        self.model.eval()
+        pred = self.model.predict(img)
+        pred = self.token_post_process(pred, self.tokenizer)
         return pred
 
     def detokenize(self, tokens, tokenizer):
@@ -123,23 +135,72 @@ class ExperimentModel:
                 if toks[b][i] in (['[BOS]', '[EOS]', '[PAD]']):
                     del toks[b][i]
         return toks
-    def tokenTstr(self, token):
-        s = ""
-        for k in token[0]:
-            s+=k
+
+    def token_post_process(self, tokens, tokenizer):
+        """convert token ở dạng 
+
+        Args:
+            tokens (list): token ở dạng id
+            tokenizer (_type_): _description_
+
+        Returns:
+            list: list các string predict đã được hậu xử lý
+        """
+        toks = [tokenizer.convert_ids_to_tokens(tok) for tok in tokens] #convert token ids to token 
+        toks = [self.token2str(tok) for tok in toks] #convert list token to string token
+        toks = [''.join(detok.split(' ')).replace('Ġ', ' ').replace('[EOS]', '').replace('[BOS]', '').replace('[PAD]', '').strip() for detok in toks]
+        toks = [self.post_process(tok) for tok in toks]
+        return toks
+    
+    def post_process(self, s: str):
+        """Remove unnecessary whitespace from LaTeX code.
+        Args:
+            s (str): Input string
+        Returns:
+            str: Processed image
+        """
+        text_reg = r'(\\(operatorname|mathrm|text|mathbf)\s?\*? {.*?})'
+        letter = '[a-zA-Z]'
+        noletter = '[\W_^\d]'
+        names = [x[0].replace(' ', '') for x in re.findall(text_reg, s)]
+        s = re.sub(text_reg, lambda match: str(names.pop(0)), s)
+        news = s
+        while True:
+            s = news
+            news = re.sub(r'(?!\\ )(%s)\s+?(%s)' % (noletter, noletter), r'\1\2', s)
+            news = re.sub(r'(?!\\ )(%s)\s+?(%s)' % (noletter, letter), r'\1\2', news)
+            news = re.sub(r'(%s)\s+?(%s)' % (letter, noletter), r'\1\2', news)
+            if news == s:
+                break
         return s
 
+    def token2str(self, token):
+        """convert token o dang list sang str
+        Args:
+            token (list): [t1, t2, t3]
+        """
+        s = ""
+        for tk in token:
+            s +=tk
+        return s
 
 
 args = {
     "data_train":"D:\Img2Latex\Latex_ocr\datasets\\train.pkl",
     "data_val":"D:\LaTeX-OCR-1\Latex_ocr\hoa.pkl",
-    "data_test":"D:\LaTeX-OCR-1\Latex_ocr\hoa.pkl",
+    "data_test":"D:\Img2Latex\datasets\\test.pkl",
     "tokenizer":"D:\LaTeX-OCR-1\Latex_ocr\\tokenizer\\tokenizer.json",
-    "model":[[128, 8, 4080, 6], [128, 8, 4080, 6, 1175]],
-    "checkpoint":None,
+    "model":[[128, 4, 256, 3], [128, 4, 256, 3, 1175]],
+    "checkpoint":"D:\Img2Latex\Latex_ocr\checkpoints\checkpoint_epoch20",
     "num_epoch":10
 }
-run = ExperimentModel(args)
-run.exp()
+
+if __name__ == "__main__":
+    run = ExperimentModel(args)
+    run.exp()
+    # image = cv2.imread("D:\Img2Latex\data_train\\train_5_0_da.png")
+    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # image = test_transform(image=image)['image']
+    # pred = run.inference(image[:1].unsqueeze(0))
+    # print(pred)
 

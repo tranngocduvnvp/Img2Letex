@@ -105,7 +105,7 @@ class OCR_model(nn.Module):
         super().__init__()
         self.encoder = Encoder(*conf_encoder)
         self.decoder = Decoder(*conf_decoder)
-        self.max_output_len = 10
+        self.max_output_len = 150
         self.sos_index = 1
         self.eos_index = 2
         self.pad_index = 0

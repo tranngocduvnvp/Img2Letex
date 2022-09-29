@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import glob
-
+import tqdm
 def minmax_size(img: Image, max_dimensions: Tuple[int, int] = None, min_dimensions: Tuple[int, int] = None) -> Image:
     """Resize or pad an image to fit into given dimensions
 
@@ -70,7 +70,7 @@ def pad(img: Image, divable: int = 32) -> Image:
 
 # img = Image.open("D:\LaTeX-OCR-1\datasets\images_private_test\part4.1_32.jpg")
 
-for path in glob.glob("D:\LaTeX-OCR-1\datasets\data_ch/*.png"):
+for path in tqdm.tqdm(glob.glob("D:\Img2Latex\data_train/*.png")):
     img = Image.open(path)
     img = pad(minmax_size(pad(img), (192,672), (32,32)))
     input_image = img.convert('RGB').copy()

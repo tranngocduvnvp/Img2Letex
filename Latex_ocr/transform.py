@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+import cv2
 import albumentations as alb
 from albumentations.pytorch import ToTensorV2
 
@@ -27,3 +29,12 @@ test_transform = alb.Compose(
         ToTensorV2(),
     ]
 )
+
+if __name__ == "__main__":
+    # image = Image.open("D:\Img2Latex\datasets\data_ch\hoa0.png")
+    image = cv2.imread("D:\Img2Latex\datasets\data_ch\hoa0.png")
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = test_transform(image=image)['image']
+    plt.imshow(image[:1][0],cmap="gray")
+    plt.show()
+    print(image.shape)
