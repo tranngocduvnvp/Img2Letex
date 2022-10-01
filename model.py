@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from torchvision import models
 import math
+import warnings
+warnings.filterwarnings("ignore")
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
@@ -12,7 +14,6 @@ class Sin_Cos_PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
-
         position = torch.arange(max_len).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
         pe = torch.zeros(max_len, 1, d_model)
@@ -60,11 +61,21 @@ def find_first(x, element, dim: int = 1):
 
 
 class Encoder(nn.Module):
-    def __init__(self, d_model=128, n_head = 8, dim_feedforward=4080, num_layers = 6) -> None:
+    def __init__(self, d_model=128, n_head = 8, dim_feedforward=4080, num_layers = 6,model_name="resnet18") -> None:
         super().__init__()
-        resnet = models.resnet34(pretrained = True)
-        resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        self.Cnn_extractor = nn.Sequential(*(list(resnet.children())[:-2] + [nn.Conv2d(512,d_model,1)]))
+        if model_name == "resnet18":
+            resnet = models.resnet18(pretrained = True)
+            resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+            self.Cnn_extractor = nn.Sequential(*(list(resnet.children())[:-2] + [nn.Conv2d(512,d_model,1)]))
+        elif model_name == "resnet34":
+            resnet = models.resnet34(pretrained = True)
+            resnet.conv1 = nn.Conv2d(1, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+            self.Cnn_extractor = nn.Sequential(*(list(resnet.children())[:-2] + [nn.Conv2d(512,d_model,1)]))
+        elif model_name == "efficient_b0":
+            efficient = models.efficientnet_b0(pretrained = True).features
+            efficient[0][0] = nn.Conv2d(1, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+            self.Cnn_extractor = nn.Sequential(*(list(efficient.children()) + [nn.Conv2d(1280,d_model,1)]))
+
         transformer_encocder_layer = nn.TransformerEncoderLayer(d_model,n_head,dim_feedforward)
         self.transformer_encoder = nn.TransformerEncoder(transformer_encocder_layer, num_layers)
         self.positional_encoding = nn.Parameter(torch.zeros(1, d_model,6,21))
@@ -159,13 +170,15 @@ class OCR_model(nn.Module):
 
     
 
-conf_encoder = [128, 8, 4080, 6]
+conf_encoder = [128, 8, 4080, 6,"efficient_b0"]
 conf_decoder = [128, 8, 4080, 6, 1000]
 
 # model = OCR_model(conf_encoder, conf_decoder)
-# img = torch.rand(2,3,32,128)
+# img = torch.rand(2,1,32,128)
 # tgt = torch.tensor([[0,1,2,3],[1,2,3,4]])
-# # out = model(img, tgt)
+# out = model(img, tgt)
+# print(out.shape)
+
 # pred = model.predict(img)
 
 
